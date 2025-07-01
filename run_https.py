@@ -51,18 +51,27 @@ def main():
     print("🚀 Starting Brainwave with HTTPS...")
     
     # Check for API key
-    if not os.getenv("OPENAI_API_KEY"):
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
         print("❌ OPENAI_API_KEY environment variable not set!")
         print("Set it with: export OPENAI_API_KEY='your-api-key'")
+        print(f"Current environment variables: {list(os.environ.keys())}")
         sys.exit(1)
+    else:
+        print(f"✅ OPENAI_API_KEY found (length: {len(api_key)})")
+    
+    # Check data directory
+    data_dir = os.getenv("BRAINWAVE_DATA_DIR", "brainwave-data")
+    print(f"📁 Data directory: {data_dir}")
     
     # Generate or use existing certificates
     cert_file, key_file = generate_self_signed_cert()
     
-    print(f"\n🌐 Server will start at: https://localhost:3005")
+    print(f"\n🌐 Open your browser and go to: https://localhost:3005")
     print("⚠️  Your browser will show a security warning for the self-signed certificate.")
     print("   Click 'Advanced' → 'Proceed to localhost (unsafe)' to continue.")
-    print("\n🎤 Microphone access should work with HTTPS!\n")
+    print("\n🎤 Microphone access should work with HTTPS!")
+    print("📝 Note: Uvicorn will show 0.0.0.0:3005 below, but you should use localhost:3005\n")
     
     # Start the server with SSL
     uvicorn.run(
@@ -71,7 +80,8 @@ def main():
         port=3005,
         ssl_keyfile=key_file,
         ssl_certfile=cert_file,
-        reload=True
+        reload=True,
+        log_level="info"
     )
 
 if __name__ == "__main__":

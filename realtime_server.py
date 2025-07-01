@@ -85,6 +85,7 @@ class SessionLogger:
             logger.info(f"Session finalized: {self.dir}")
         except Exception as e:
             logger.error(f"Error finalizing session: {e}", exc_info=True)
+            logger.error(f"Session directory: {self.dir}")
 
 
 # Pydantic models for request and response schemas
