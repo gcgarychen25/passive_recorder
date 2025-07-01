@@ -189,7 +189,7 @@ class AudioProcessor:
         return resampled_int16.tobytes()
 
     def save_audio_buffer(self, audio_buffer, filename):
-        with wave.open(filename, 'wb') as wf:
+        with wave.open(str(filename), 'wb') as wf:
             wf.setnchannels(1)  # Mono audio
             wf.setsampwidth(2)  # 2 bytes per sample (16-bit)
             wf.setframerate(self.target_sample_rate)
