@@ -111,6 +111,8 @@ app = FastAPI()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     logger.error("OPENAI_API_KEY is not set in environment variables.")
+    logger.error(f"Available environment variables: {list(os.environ.keys())}")
+    logger.error("Please set OPENAI_API_KEY in Railway dashboard under Variables tab")
     raise EnvironmentError("OPENAI_API_KEY is not set.")
 
 # Initialize with a default model
