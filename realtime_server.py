@@ -26,6 +26,67 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+import json, pathlib, time
+
+DATA_ROOT = pathlib.Path(os.getenv("BRAINWAVE_DATA_DIR", "brainwave-data"))
+DATA_ROOT.mkdir(parents=True, exist_ok=True)
+
+class SessionLogger:
+    """
+    Collects audio & transcript during one recording session and flushes them
+    to disk when `finalize()` is called.
+    """
+    def __init__(self):
+        ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        self.dir = DATA_ROOT / ts
+        self.dir.mkdir(parents=True, exist_ok=True)
+        self.audio_chunks: list[bytes] = []
+        self.transcript_parts: list[str] = []
+        self.started_at = time.time()
+        logger.info(f"Created new session logger: {self.dir}")
+
+    # called from receive_messages() when audio is processed
+    def add_audio(self, chunk: bytes):
+        self.audio_chunks.append(chunk)
+
+    # called from handle_text_delta()
+    def add_text(self, piece: str):
+        self.transcript_parts.append(piece)
+
+    # called from handle_response_done()
+    def finalize(self, sample_rate: int = 24000):
+        try:
+            # ---- audio ----
+            if self.audio_chunks:
+                audio_path = self.dir / "audio.wav"
+                AudioProcessor(sample_rate).save_audio_buffer(self.audio_chunks, audio_path)
+                logger.info(f"Saved audio to {audio_path}")
+            
+            # ---- text ----
+            transcript_text = "".join(self.transcript_parts)
+            if transcript_text.strip():
+                text_path = self.dir / "transcript.txt"
+                text_path.write_text(transcript_text, "utf-8")
+                logger.info(f"Saved transcript to {text_path}")
+            
+            # ---- metadata (optional) ----
+            meta = {
+                "started_at": self.started_at,
+                "ended_at": time.time(),
+                "duration_sec": time.time() - self.started_at,
+                "num_audio_chunks": len(self.audio_chunks),
+                "num_text_parts": len(self.transcript_parts),
+                "transcript_length": len(transcript_text),
+            }
+            meta_path = self.dir / "meta.json"
+            meta_path.write_text(json.dumps(meta, indent=2))
+            logger.info(f"Saved metadata to {meta_path}")
+            
+            logger.info(f"Session finalized: {self.dir}")
+        except Exception as e:
+            logger.error(f"Error finalizing session: {e}", exc_info=True)
+
+
 # Pydantic models for request and response schemas
 class ReadabilityRequest(BaseModel):
     text: str = Field(..., description="The text to improve readability for.")
@@ -110,12 +171,16 @@ async def websocket_endpoint(websocket: WebSocket):
     recording_stopped = asyncio.Event()
     openai_ready = asyncio.Event()
     pending_audio_chunks = []
+    session_logger = None  # Will be created when recording starts
     
     async def initialize_openai():
-        nonlocal client
+        nonlocal client, session_logger
         try:
             # Clear the ready flag while initializing
             openai_ready.clear()
+            
+            # Create a new session logger for this recording session
+            session_logger = SessionLogger()
             
             client = OpenAIRealtimeAudioTextClient(os.getenv("OPENAI_API_KEY"))
             await client.connect()
@@ -155,12 +220,18 @@ async def websocket_endpoint(websocket: WebSocket):
     # Move the handler definitions here (before initialize_openai)
     async def handle_text_delta(data):
         try:
+            delta_text = data.get("delta", "")
             if websocket.client_state == WebSocketState.CONNECTED:
                 await websocket.send_text(json.dumps({
                     "type": "text",
-                    "content": data.get("delta", ""),
+                    "content": delta_text,
                     "isNewResponse": False
                 }))
+                
+                # Add text to session logger
+                if session_logger and delta_text:
+                    session_logger.add_text(delta_text)
+                
                 logger.info("Handled response.text.delta")
         except Exception as e:
             logger.error(f"Error in handle_text_delta: {str(e)}", exc_info=True)
@@ -183,9 +254,14 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.info("Handled error message from OpenAI")
 
     async def handle_response_done(data):
-        nonlocal client
+        nonlocal client, session_logger
         logger.info("Handled response.done")
         recording_stopped.set()
+        
+        # Finalize the session logger before closing
+        if session_logger:
+            session_logger.finalize()
+            session_logger = None
         
         if client:
             try:
@@ -207,7 +283,7 @@ async def websocket_endpoint(websocket: WebSocket):
     audio_queue = asyncio.Queue()
 
     async def receive_messages():
-        nonlocal client
+        nonlocal client, session_logger
         
         try:
             while True:
@@ -222,6 +298,11 @@ async def websocket_endpoint(websocket: WebSocket):
                     
                     if "bytes" in data:
                         processed_audio = audio_processor.process_audio_chunk(data["bytes"])
+                        
+                        # Add audio to session logger
+                        if session_logger:
+                            session_logger.add_audio(processed_audio)
+                        
                         if not openai_ready.is_set():
                             logger.debug("OpenAI not ready, buffering audio chunk")
                             pending_audio_chunks.append(processed_audio)
@@ -254,6 +335,9 @@ async def websocket_endpoint(websocket: WebSocket):
                                 logger.info(f"Sending {len(pending_audio_chunks)} buffered chunks")
                                 for chunk in pending_audio_chunks:
                                     await client.send_audio(chunk)
+                                    # Also add buffered chunks to session logger
+                                    if session_logger:
+                                        session_logger.add_audio(chunk)
                                 pending_audio_chunks.clear()
                             
                         elif msg.get("type") == "stop_recording":
@@ -276,7 +360,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     break
                 
         finally:
-            # Cleanup when the loop exits
+            # Cleanup when the loop exits - finalize session if still active
+            if session_logger:
+                logger.info("Finalizing session on connection close")
+                session_logger.finalize()
             if client:
                 try:
                     await client.close()

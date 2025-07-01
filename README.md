@@ -109,17 +109,41 @@ Deploying **Brainwave** involves setting up a Python-based environment, installi
 
 6. **Launch the Server**
 
-   Start the FastAPI server using Uvicorn:
+   **For local development with microphone access (HTTPS required):**
+   ```bash
+   python run_https.py
+   ```
+   The server will be accessible at `https://localhost:3005` (accept the security warning).
 
+   **Alternative - standard HTTP (may block microphone):**
    ```bash
    uvicorn realtime_server:app --host 0.0.0.0 --port 3005
    ```
 
-   The server will be accessible at `http://localhost:3005`.
-
 7. **Access the Application**
 
-   Open your web browser and navigate to `http://localhost:3005` to interact with Brainwave's speech recognition interface.
+   Open your web browser and navigate to `https://localhost:3005` to interact with Brainwave's speech recognition interface.
+
+## Cloud Deployment
+
+For production use and easy access without running locally, deploy to a cloud platform:
+
+### Quick Deploy Options
+
+1. **Railway (Recommended)**:
+   ```bash
+   python deploy.py
+   ```
+   Choose option 1 for Railway deployment.
+
+2. **Manual Deploy**: See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions.
+
+### Why Cloud Deployment?
+
+- ✅ **HTTPS by default** - No microphone access issues
+- ✅ **Always accessible** - No need to run locally
+- ✅ **Persistent data storage** - Your recordings are saved long-term
+- ✅ **Better performance** - Optimized server infrastructure
 
 ---
 

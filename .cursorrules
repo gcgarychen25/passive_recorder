@@ -1,0 +1,46 @@
+# Brainwave Project Rules
+
+## Code Style & Architecture
+- Always use proper logging with structured messages for debugging and monitoring
+- Implement comprehensive error handling with try-catch blocks and meaningful error messages
+- Use async/await patterns for I/O operations and WebSocket handling
+- Follow the existing pattern of creating session-based instances rather than global state
+- Maintain separation of concerns: audio processing, session logging, and API handling should be distinct
+
+## Data Persistence & Storage
+- Always implement data persistence for user interactions (audio + transcripts)
+- Use timestamped directory structure: YYYY-MM-DD_HH-MM-SS format
+- Save multiple file types per session: audio.wav, transcript.txt, meta.json
+- Include metadata with timing, counts, and session information
+- Make data directory configurable via environment variables
+
+## WebSocket & Real-time Communication
+- Implement proper WebSocket lifecycle management (connect, process, cleanup)
+- Use session-scoped resources rather than global state
+- Always clean up resources in finally blocks
+- Implement proper status reporting to frontend (idle, connecting, connected)
+- Handle connection timeouts and reconnection gracefully
+
+## AI Integration Patterns
+- Support multiple AI models with model-specific processors
+- Use streaming responses for real-time text generation
+- Implement proper prompt management in dedicated modules
+- Always specify models explicitly rather than using defaults
+
+## User Experience Priorities
+- Focus on long-term usage patterns and data accumulation
+- Implement features that support reflection and review of historical data
+- Prioritize data preservation over real-time performance when necessary
+- Design for months/years of continuous usage
+
+## Development Workflow
+- Always highlight placeholders and implementation requirements clearly
+- Update documentation and rules files when learning new patterns
+- Test thoroughly with actual audio data and real usage scenarios
+- Implement comprehensive logging for debugging production issues
+
+## Environment & Configuration
+- Use environment variables for API keys and configuration
+- Support configurable data directories
+- Implement graceful fallbacks for missing configuration
+- Log configuration status on startup 
