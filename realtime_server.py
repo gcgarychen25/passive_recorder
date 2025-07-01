@@ -124,6 +124,47 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 async def get_realtime_page(request: Request):
     return FileResponse("static/realtime.html")
 
+@app.get("/api/v1/sessions")
+async def list_sessions():
+    """List all saved recording sessions"""
+    try:
+        sessions = []
+        if DATA_ROOT.exists():
+            for session_dir in sorted(DATA_ROOT.iterdir(), reverse=True):
+                if session_dir.is_dir():
+                    session_info = {
+                        "timestamp": session_dir.name,
+                        "path": str(session_dir),
+                        "files": []
+                    }
+                    
+                    # Check what files exist
+                    for file_name in ["audio.wav", "transcript.txt", "meta.json"]:
+                        file_path = session_dir / file_name
+                        if file_path.exists():
+                            session_info["files"].append({
+                                "name": file_name,
+                                "size": file_path.stat().st_size,
+                                "exists": True
+                            })
+                        else:
+                            session_info["files"].append({
+                                "name": file_name,
+                                "size": 0,
+                                "exists": False
+                            })
+                    
+                    sessions.append(session_info)
+        
+        return {
+            "data_directory": str(DATA_ROOT),
+            "total_sessions": len(sessions),
+            "sessions": sessions[:10]  # Show last 10 sessions
+        }
+    except Exception as e:
+        logger.error(f"Error listing sessions: {e}")
+        return {"error": str(e), "data_directory": str(DATA_ROOT)}
+
 class AudioProcessor:
     def __init__(self, target_sample_rate=24000):
         self.target_sample_rate = target_sample_rate
